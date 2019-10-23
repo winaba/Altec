@@ -278,11 +278,6 @@ procedure TForm1.FormCreate(Sender: TObject);
   begin
     with FDMemTable1.FieldDefs do
     begin
-      with AddFieldDef do
-      begin
-        Name := 'id';
-        DataType := ftInteger;
-      end;
 
       with AddFieldDef do
       begin
