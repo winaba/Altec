@@ -13,6 +13,18 @@ uses
   IdExplicitTLSClientServerBase,IdAttachmentFile, XMLDoc, inifiles ;
 
 type
+  TConfigEmail = record
+    sFrom      : string;
+    sFromName  : string;
+    sHost      : string;
+    iPort      : integer;
+    sUserName  : string;
+    sPassword  : string;
+    sAssunto   : string;
+    sDestino   : string;
+    sAnexo     : string;
+  end;
+
   TForm1 = class(TForm)
     FDMemTable1: TFDMemTable;
     DataSource1: TDataSource;
@@ -71,12 +83,15 @@ type
     function lerCEP(conteudo, campo : string) : String;
     function enviaEmail : Boolean;
     procedure montaXML;
+    procedure carregaIni;
   public
     { Public declarations }
   end;
 
+
 var
   Form1: TForm1;
+  email : TConfigEmail;
 
 implementation
 
@@ -104,14 +119,6 @@ end;
 
 function TForm1.enviaEmail: Boolean;
 var
-  sFrom, sFromName, sHost, sUserName, sPassword,
-  sAssunto, sDestino, sAnexo : String;
-  iPort                : Integer;
-
-  ACorpo               : TStrings;
-
-  ArquivoINI           : TIniFile;
-
   idMsg                : TIdMessage;
   IdText               : TIdText;
   idSMTP               : TIdSMTP;
@@ -119,18 +126,7 @@ var
 begin
   try
     try
-      ArquivoINI := TIniFile.Create(ExtractFilePath(ParamStr(0)) + 'config.ini');
-
-      sFrom      := ArquivoINI.ReadString('CONFIG', 'From', sFrom);
-      sFromName  := ArquivoINI.ReadString('CONFIG', 'FromName', sFrom);
-      sHost      := ArquivoINI.ReadString('CONFIG', 'Host', sHost);
-      iPort      := ArquivoINI.ReadInteger('CONFIG', 'Port', iPort);
-      sUserName  := ArquivoINI.ReadString('CONFIG', 'UserName', sUserName);
-      sPassword  := ArquivoINI.ReadString('CONFIG', 'Password', sPassword);
-
-      sAssunto   := ArquivoINI.ReadString('SEND', 'Subject', sAssunto);
-      sDestino   := ArquivoINI.ReadString('SEND', 'To', sDestino);
-      sAnexo     := ArquivoINI.ReadString('SEND', 'Attachment', sAnexo);
+      carregaIni;
 
       IdSSLIOHandlerSocket                   := TIdSSLIOHandlerSocketOpenSSL.Create(Self);
       IdSSLIOHandlerSocket.SSLOptions.Method := sslvSSLv23;
@@ -139,35 +135,36 @@ begin
       idMsg                            := TIdMessage.Create(Self);
       idMsg.CharSet                    := 'utf-8';
       idMsg.Encoding                   := meMIME;
-      idMsg.From.Name                  := sFromName;
-      idMsg.From.Address               := sFrom;
+      idMsg.From.Name                  := email.sFromName;
+      idMsg.From.Address               := email.sFrom;
       idMsg.Priority                   := mpNormal;
-      idMsg.Subject                    := sAssunto;
+      idMsg.Subject                    := email.sAssunto;
 
       idMsg.Recipients.Add;
-      idMsg.Recipients.EMailAddresses := sDestino;
+      idMsg.Recipients.EMailAddresses := email.sDestino;
 
       IdSMTP                           := TIdSMTP.Create(Self);
       IdSMTP.IOHandler                 := IdSSLIOHandlerSocket;
       IdSMTP.UseTLS                    := utUseImplicitTLS;
       IdSMTP.AuthType                  := satDefault;
-      IdSMTP.Host                      := sHost;
+      IdSMTP.Host                      := email.sHost;
       IdSMTP.AuthType                  := satDefault;
-      IdSMTP.Port                      := iPort;
-      IdSMTP.Username                  := sUserName;
-      IdSMTP.Password                  := sPassword;
+      IdSMTP.Port                      := email.iPort;
+      IdSMTP.Username                  := email.sUserName;
+      IdSMTP.Password                  := email.sPassword;
 
       IdSMTP.Connect;
       IdSMTP.Authenticate;
 
-      if sAnexo <> EmptyStr then
-        if FileExists(sAnexo) then
-          TIdAttachmentFile.Create(idMsg.MessageParts, sAnexo);
+      if email.sAnexo <> EmptyStr then
+        if FileExists(email.sAnexo) then
+          TIdAttachmentFile.Create(idMsg.MessageParts, email.sAnexo);
 
       if IdSMTP.Connected then
       begin
         try
           IdSMTP.Send(idMsg);
+          showmessage('E-Mail de confirmação de cadastro enviado para '+email.sDestino);
         except on E:Exception do
           begin
             ShowMessage('Erro ao tentar enviar: ' + E.Message);
@@ -190,6 +187,7 @@ begin
   except on e:Exception do
     begin
       Result := False;
+      showmessage('Não foi possivel enviar o e-mail de confirmação de cadastro.');
     end;
   end;
 
@@ -271,6 +269,58 @@ end;
 procedure TForm1.FDMemTable1BeforePost(DataSet: TDataSet);
 begin
   montaXML;
+end;
+
+procedure TForm1.carregaIni;
+  var
+    ArquivoINI : TIniFile;
+begin
+
+  if FileExists(ExtractFilePath(ParamStr(0)) + 'config.ini') then
+  begin
+    ArquivoINI := TIniFile.Create(ExtractFilePath(ParamStr(0)) + 'config.ini');
+
+    if (ArquivoINI.ReadString('CONFIG', 'From', email.sFrom)='seu_email@gmail.com') or
+       (ArquivoINI.ReadString('CONFIG', 'From', email.sFrom)='') then
+    begin
+      showmessage('Configure o arquivo de configuração config.ini, '+
+                  'isso possibilitará a aplicação enviar o e-mail de '+
+                  'confirmação de cadastro');
+    end
+    else
+    begin
+      email.sFrom      := ArquivoINI.ReadString('CONFIG', 'From', email.sFrom);
+      email.sFromName  := ArquivoINI.ReadString('CONFIG', 'FromName', email.sFromName);
+      email.sHost      := ArquivoINI.ReadString('CONFIG', 'Host', email.sHost);
+      email.iPort      := ArquivoINI.ReadInteger('CONFIG', 'Port', email.iPort);
+      email.sUserName  := ArquivoINI.ReadString('CONFIG', 'Username', email.sUserName);
+      email.sPassword  := ArquivoINI.ReadString('CONFIG', 'Password', email.sPassword);
+
+      email.sAssunto   := ArquivoINI.ReadString('SEND', 'Subject', email.sAssunto);
+      email.sDestino   := ArquivoINI.ReadString('SEND', 'To', email.sDestino);
+      email.sAnexo     := ArquivoINI.ReadString('SEND', 'Attachment', email.sAnexo);
+    end;
+  end
+  else
+  begin
+    showmessage('Foi criado um arquivo de configuração config.ini, '+
+                'no diretório da aplicação, preencha-o para o email '+
+                'ser enviado corretamente.');
+
+    ArquivoINI := TIniFile.Create(ExtractFilePath(ParamStr(0)) + 'config.ini');
+
+    ArquivoINI.WriteString('CONFIG', 'From', 'seu_email@gmail.com');
+    ArquivoINI.WriteString('CONFIG', 'FromName', 'Teste Cadastro Altec.');
+    ArquivoINI.WriteString('CONFIG', 'Host', 'smtp.gmail.com');
+    ArquivoINI.WriteInteger('CONFIG', 'Port', 465);
+    ArquivoINI.WriteString('CONFIG', 'UserName', 'seu_email@gmail.com');
+    ArquivoINI.WriteString('CONFIG', 'Password', 'sua_senha');
+
+    ArquivoINI.WriteString('SEND', 'To', 'destinatario@gmail.com');
+    ArquivoINI.WriteString('SEND', 'Subject', 'Email de Cadastro Altec');
+    ArquivoINI.WriteString('SEND', 'Attachment', 'cliente.xml');
+
+  end;
 end;
 
 procedure TForm1.FormCreate(Sender: TObject);
@@ -383,6 +433,7 @@ procedure TForm1.FormCreate(Sender: TObject);
 
 begin
   inicializaBanco;
+  carregaIni;
 end;
 
 end.
