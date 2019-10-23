@@ -418,7 +418,6 @@ object Form1: TForm1
     end
   end
   object DataSource1: TDataSource
-    AutoEdit = False
     DataSet = FDMemTable1
     Left = 592
     Top = 448
