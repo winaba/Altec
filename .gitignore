@@ -1,0 +1,7 @@
+*.local
+*.res
+*.dproj.local
+*.identcache
+*.res
+*.stat
+win32/
